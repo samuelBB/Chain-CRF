@@ -17,22 +17,20 @@ from utils import timed
 #     return logsumexp(z)
 
 
+# XXX see example in src doc
 # W = tf.get_variable('W', [2,2,2])
 # V = tf.Variable([[2,2],[3,3]])
 # op = tf.variables_initializer([V])
 # loss = tf.reduce_sum(tf.square(V))
 # optimizer = tf.contrib.opt.ScipyOptimizerInterface(loss, options={'maxiter': 100})
+# XXX in session: optimizer.minimize(session)
 
 
 def RMLE_tf(crf, UB, Ws):
-    Ut, Bt = map(tf.constant, UB)
-    Wut, Wbt = map(tf.Variable, Ws)
-
-    E = tf.reduce_sum(Ut*Wut) + tf.reduce_sum(Bt*Wbt)
-
+    UB_tf = U, B = map(lambda p: tf.placeholder(tf.float64, shape=p.shape), UB)
+    W_u, W_b = map(tf.Variable, Ws)
+    E = tf.reduce_sum(U * W_u) + tf.reduce_sum(B * W_b)
     with tf.Session() as session:
         session.run(tf.global_variables_initializer())
         with timed('tf'):
-            print session.run(E)
-        # optimizer.minimize(session)
-
+            print session.run(E, feed_dict=dict(zip(UB_tf, UB)))
