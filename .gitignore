@@ -1,0 +1,8 @@
+# python
+*.pyc
+
+# cython
+build
+
+# pycharm
+.idea
