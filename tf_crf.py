@@ -28,13 +28,13 @@ from utils import timed
 
 def RMLE_tf(crf, Ws):
     shapes = map(lambda p: p.shape[1:], crf.phis[0])
-    UB = U, B = map(lambda s: tf.placeholder(tf.float64, shape=(None,)+s), shapes)
+    U, B = map(lambda s: tf.placeholder(tf.float64, shape=(None,)+s), shapes)
     W_u, W_b = map(tf.Variable, Ws)
     E = tf.reduce_sum(U * W_u) + tf.reduce_sum(B * W_b)
     with tf.Session() as session:
         session.run(tf.global_variables_initializer())
         e = 0
         with timed('tf'):
-            for ub in crf.phis:
-                e += session.run(E, feed_dict=dict(zip(UB, ub)))
+            for u, b in crf.phis:
+                e += session.run(E, feed_dict={U:u, B:b})
         print e
