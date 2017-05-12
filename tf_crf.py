@@ -26,11 +26,15 @@ from utils import timed
 # XXX in session: optimizer.minimize(session)
 
 
-def RMLE_tf(crf, UB, Ws):
-    UB_tf = U, B = map(lambda p: tf.placeholder(tf.float64, shape=p.shape), UB)
+def RMLE_tf(crf, Ws):
+    shapes = map(lambda p: p.shape[1:], crf.phis[0])
+    UB = U, B = map(lambda s: tf.placeholder(tf.float64, shape=(None,)+s), shapes)
     W_u, W_b = map(tf.Variable, Ws)
     E = tf.reduce_sum(U * W_u) + tf.reduce_sum(B * W_b)
     with tf.Session() as session:
         session.run(tf.global_variables_initializer())
+        e = 0
         with timed('tf'):
-            print session.run(E, feed_dict=dict(zip(UB_tf, UB)))
+            for ub in crf.phis:
+                e += session.run(E, feed_dict=dict(zip(UB, ub)))
+        print e
