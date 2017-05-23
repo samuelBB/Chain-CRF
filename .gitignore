@@ -6,3 +6,6 @@ build
 
 # pycharm
 .idea
+
+# local project files
+results

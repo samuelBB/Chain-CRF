@@ -1,12 +1,14 @@
 from itertools import izip
-from random import choice, shuffle as shuf
+from random import choice
 
 import numpy as np
 from scipy.misc import logsumexp as lse
 
+from utils import softmax
+
 
 class Inference:
-    def MAP(self, x, (W_u, W_b)):
+    def MAP(self, x, (W_u, W_b), only_label=True):
         t = np.zeros((2, self.n_labels))
         c = np.zeros((len(x), self.n_labels), int)
         for i in xrange(len(x)):
@@ -16,11 +18,11 @@ class Inference:
            t[0], t[1] = t[1], 0.
         s = t[0].argmin()
         v = t[0, s]
-        ms = []
+        ms = np.zeros(len(x), int)
         for i in xrange(len(x)-1, -1, -1):
-            s = c[i,s]
-            ms = [s] + ms
-        return v, ms
+            s = c[i, s]
+            ms[i] = s
+        return ms if only_label else (v, ms)
 
     def Z(self, x, W_u, W_b):
         z = -np.dot(W_u, x[0])
@@ -29,7 +31,7 @@ class Inference:
         return lse(z)
 
     def E_PL(self, x, y, W, s, l):
-        return self.E(x, W, self.set_idxs(y, s, l))
+        return self.E(x, self.set_idxs(y, s, l), W)
 
     def Z_PL(self, x, y, W, s):
         return lse([-self.E_PL(x, y, W, s, l) for l in self.L])
@@ -67,20 +69,17 @@ class Inference:
                 np.log(R[0, n])) for n in self.L])
         return prob[0] if hasattr(prob, '__len__') else prob
 
-    def MPM(self, x, W, normalize=False):
-        return [max((self.marginal(x,W,[(i,l)]), l) for l in self.L)[1] for i in xrange(len(x))]
+    def MPM(self, x, W):
+        return np.array([max((self.marginal(x, W, [(i, l)]), l) for l in self.L)[1]
+            for i in xrange(len(x))])
 
-    def Gibbs(self, x, W, n_samples=1, burn=0, interval=1, shuffle=False):
-        y_old = np.array([choice(self.L) for _ in xrange(len(x))])
-        samples = []
-        I = range(len(x))
-        for j in range(burn + n_samples * interval):
+    def Gibbs(self, x, W, n_samples=1, burn=100, interval=1):
+        samples, y_old = [], np.array([choice(self.L) for _ in xrange(len(x))])
+        for j in xrange(burn + n_samples * interval):
             y_new = y_old.copy()
-            if shuffle: shuf(I)
-            for i in I:
-                P = np.array(
-                    [np.exp(-self.E(x, W, self.set_idxs(y_new, i, l))) for l in self.L])
-                y_new[i] = np.random.choice(self.L, p=P / P.sum())
+            for i in xrange(len(x)):
+                y_new[i] = np.random.choice(self.L, p=softmax(np.array(
+                    [-self.E(x, self.set_idxs(y_new, i, l), W) for l in self.L])))
             if j >= burn and j % interval == 0:
                 samples.append(y_new)
         return samples
@@ -88,18 +87,18 @@ class Inference:
 
 class SlowInference:
     def MAP_slow(self, x, W):
-        return min((self.E(x, W, y), y) for y in self.configs(len(x)))
+        return min((self.E(x, y, W), y) for y in self.configs(len(x)))
 
     def Z_slow(self, x, *W):
-        return lse([-self.E(x, W, y) for y in self.configs(len(x))])
+        return lse([-self.E(x, y, W) for y in self.configs(len(x))])
 
     def marginal_slow(self, x, W, pairs):
         """
         unnormalized
         """
         I, V = map(list, zip(*pairs))
-        J, y = sorted(set(range(len(x))) - set(I)), self.set_idxs(np.zeros(len(x), int), I, V)
-        return lse([-self.E(x, W, self.set_idxs(y, J, c)) for c in self.configs(len(J))])
+        J, y = sorted(set(xrange(len(x))) - set(I)), self.set_idxs(np.zeros(len(x), int), I, V)
+        return lse([-self.E(x, self.set_idxs(y, J, c), W) for c in self.configs(len(J))])
 
 
 class Other:

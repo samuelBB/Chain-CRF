@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 
 from crf import ChainCRF
-from data import read_ocr
+from data import read_ocr, synthetic
 from training import ML, SML
 from utils import timed
 
@@ -13,16 +13,14 @@ def test_E(crf):
     Ws = crf.split_W(np.random.rand(crf.n_W))
     x,y = crf.X[0], crf.Y[0]
     with timed('E'):
-        s = crf.E(x, Ws, y)
+        s = crf.E(x, y, Ws)
     print s
 
 
 def test_E_sum(crf):
     Ws = crf.split_W(np.random.rand(crf.n_W))
     with timed('fast'):
-        s = sum(crf.E(x, Ws, y) for x,y in izip(crf.X,crf.Y))
-    with timed('loop'):
-        s = sum(crf.E(phi, Ws) for phi in crf.phis)
+        s = sum(crf.E(x, y, Ws) for x,y in izip(crf.X,crf.Y))
     print s
 
 
@@ -46,7 +44,7 @@ def test_rmle(crf, parallel=False):
     W = np.random.rand(crf.n_W)
     def rmle(W):
         Ws = crf.split_W(W)
-        return sum(crf.E(x, Ws, y) + crf.Z(x, *Ws) for x, y in crf.XY())
+        return sum(crf.E(x, y, Ws) + crf.Z(x, *Ws) for x, y in crf.XY())
     with timed('rmle'):
         X = rmle(W)
     print X
@@ -55,7 +53,7 @@ def test_rmle(crf, parallel=False):
         def rmle_p(W):
             Ws = crf.split_W(W)
             def para((x, y)):
-                return crf.E(x, Ws, y) + crf.Z(x, *Ws)
+                return crf.E(x, y, Ws) + crf.Z(x, *Ws)
             return sum(ProcessPool().map(para, crf.XY()))
         with timed('rmle_parallel'):
             X = rmle_p(W)
@@ -106,11 +104,11 @@ def test_MAP(crf, name='concat', slow=False):
     x = crf.X[0]
     with timed('MAP_' + name):
         v,y = crf.MAP(x, Ws)
-    print v,y,'evald', crf.E(x,Ws,y)
+    print v,y,'evald', crf.E(x, y, Ws)
     if slow:
         with timed('MAP_slow_' + name):
             v, y = crf.MAP_slow(x, Ws)
-        print v, y, 'evald', crf.E(x, Ws, y)
+        print v, y, 'evald', crf.E(x, y, Ws)
 
 
 def test_sample(crf, name='concat'):
@@ -123,24 +121,27 @@ def test_sample(crf, name='concat'):
 
 
 if __name__ == '__main__':
-    # nl = 4
-    # data = synthetic(500, seq_len_range=(4, 7), n_feats=10, n_labels=nl)
-    nl = 26
-    data = read_ocr()
+    nl = 2
+    data = synthetic(250, seq_len_range=(4, 7), n_feats=10, n_labels=nl)
+    # nl = 26
+    # data = read_ocr()
     X,Y = zip(*data)
 
-    X_tr, X_te, Y_tr, Y_te = train_test_split(X, Y) # 75/25 split XXX change pct?
-    # TODO split {X/y}_te into val/test
+    crf = ChainCRF(X, Y, range(nl))
+    # crf = ChainCRF(X, Y, range(nl), potts(nl))
 
-    crf = ChainCRF(X_tr, Y_tr, range(nl))
+    # ml = ML(crf, True, 10, interval=10)
+    # ml.train()
+    # ml.save_solution('W_ocr_ML_no_reg')
+    #
+    # ml = ML(crf, True, 10, interval=10)
+    # ml.train(reg=1.)
+    # ml.save_solution('W_ocr_ML_reg_1')
 
-    ml = ML(crf)
-    ml.train()
-    ml.save_solution('W_ocr_ML_no_reg')
-
-    # sml = SML(crf)
-    # sml.sgd()
-    # sml.save_solution('W_ocr_SML_no_reg')
+    # sml = SML(crf, True, 10, interval=10)
+    sml = SML(crf, True)
+    sml.sgd(n_iters=10, val_interval=5)
+    sml.save_solution('W_ocr_SML_no_reg')
 
     # test_sample(crf)
     # test_MAP(crf)
@@ -150,7 +151,6 @@ if __name__ == '__main__':
     # test_Z(crf, slow=True)
     # test_rmle(crf)
 
-    # crf = ChainCRF(X, Y, range(nl), potts(nl))
     # test_sample(crf, 'scalar')
     # test_MAP(crf,'scalar')
     # test_MPM(crf, 'scalar')
