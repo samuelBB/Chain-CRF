@@ -1,11 +1,11 @@
 from itertools import izip
 
+import dill
 import numpy as np
-from sklearn.model_selection import train_test_split
 
 from crf import ChainCRF
 from data import read_ocr, synthetic
-from training import ML, SML
+from training import ML, SML, baseline_SVC
 from utils import timed
 
 
@@ -121,10 +121,10 @@ def test_sample(crf, name='concat'):
 
 
 if __name__ == '__main__':
-    nl = 2
-    data = synthetic(250, seq_len_range=(4, 7), n_feats=10, n_labels=nl)
-    # nl = 26
-    # data = read_ocr()
+    # nl = 2
+    # data = synthetic(250, seq_len_range=(4, 7), n_feats=10, n_labels=nl)
+    nl = 26
+    data = read_ocr()
     X,Y = zip(*data)
 
     crf = ChainCRF(X, Y, range(nl))
@@ -139,9 +139,11 @@ if __name__ == '__main__':
     # ml.save_solution('W_ocr_ML_reg_1')
 
     # sml = SML(crf, True, 10, interval=10)
-    sml = SML(crf, True)
-    sml.sgd(n_iters=10, val_interval=5)
-    sml.save_solution('W_ocr_SML_no_reg')
+    # sml.sgd()
+    # sml.save_solution('W_ocr_SML_no_reg')
+
+    svc = baseline_SVC(crf)
+    dill.dump(svc, 'ocr_svc_default.p')
 
     # test_sample(crf)
     # test_MAP(crf)

@@ -180,7 +180,7 @@ class SML(Learner):
 
 def baseline_SVC(crf, C=1., loss='squared_hinge', penalty='l2'):
     X, Y = np.concatenate(crf.X), np.concatenate(crf.Y)
-    dual = len(crf.N_tr) <= len(crf.n_feats)
+    dual = crf.N_tr <= crf.n_feats
     return svm.LinearSVC(penalty, loss, dual, C=C).fit(X, Y)
 
 
