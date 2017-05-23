@@ -64,14 +64,18 @@ class Learner:
     def grad_apx(self, W):
         return approx_fprime(W, self.obj, np.sqrt(np.finfo(float).eps))
 
-    def __call__(self, method='L-BFGS-B', disp=True, reg=0.):
+    def save_solution(self, name='W_opt'):
+        np.save(name, self.W_opt)
+
+    def train(self, method='L-BFGS-B', disp=True, reg=0.):
         """
         if implementing self.{obj(W),grad(W)} to be used with scipy optimization 
         """
         obj, grad = self.regularize(reg) if reg > 0. else (self.obj, self.grad)
         init = np.zeros(self.crf.n_W)
         self.opt = minimize(obj, init, method=method, jac=grad, options={'disp': disp})
-        return self.opt.x
+        self.W_opt = self.opt.x
+        return self.W_opt
 
 
 class ML(Learner):
@@ -136,7 +140,7 @@ class SML(Learner):
     def grad(self, W, x, y):
         return self.feat(x, y) - self.E_f(W, x)
 
-    def train(self, lr=1., step=None, n_iters=10**5, rand_init=False, reg=0.):
+    def sgd(self, lr=1., step=2., n_iters=10**5, rand_init=False, reg=0.):
         N = len(self.crf.X)
         grad = self.regularize(reg)[1] if reg > 0. else self.grad
         W = (np.random.rand if rand_init else np.zeros)(self.crf.n_W)
@@ -145,7 +149,8 @@ class SML(Learner):
             W -= lr * grad(W, self.crf.X[r], self.crf.Y[r])
             if step:
                 lr *= np.power(.1, np.floor(i * step / n_iters))
-        return W
+        self.W_opt = W
+        return self.W_opt
 
 
 def baseline_SVC(crf, C=1., loss='squared_hinge', penalty='l2'):

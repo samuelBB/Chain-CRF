@@ -1,9 +1,11 @@
 from itertools import izip
 
 import numpy as np
+from sklearn.model_selection import train_test_split
 
 from crf import ChainCRF
-from data import synthetic, read_ocr, potts
+from data import read_ocr
+from training import ML, SML
 from utils import timed
 
 
@@ -91,21 +93,24 @@ def test_marginals(crf, L, name='concat', e=True, v=True):
         with timed('marginal_slow'):
             print crf.marginal_slow(x, Ws, [D[0][0]], [D[0][1]])
 
+
 def test_MPM(crf, name='concat'):
     Ws = crf.split_W(np.random.rand(crf.n_W))
     x = crf.X[0]
     with timed('MPM_' + name):
         print crf.MPM(x,Ws)
 
-def test_MAP(crf, name='concat'):
+
+def test_MAP(crf, name='concat', slow=False):
     Ws = crf.split_W(np.random.rand(crf.n_W))
     x = crf.X[0]
     with timed('MAP_' + name):
         v,y = crf.MAP(x, Ws)
     print v,y,'evald', crf.E(x,Ws,y)
-    # with timed('MAP_slow_' + name):
-    #     v, y = crf.MAP_slow(x, Ws)
-    # print v, y, 'evald', crf.E(x, Ws, y)
+    if slow:
+        with timed('MAP_slow_' + name):
+            v, y = crf.MAP_slow(x, Ws)
+        print v, y, 'evald', crf.E(x, Ws, y)
 
 
 def test_sample(crf, name='concat'):
@@ -117,7 +122,6 @@ def test_sample(crf, name='concat'):
     print len(samps), samps
 
 
-
 if __name__ == '__main__':
     # nl = 4
     # data = synthetic(500, seq_len_range=(4, 7), n_feats=10, n_labels=nl)
@@ -125,20 +129,32 @@ if __name__ == '__main__':
     data = read_ocr()
     X,Y = zip(*data)
 
-    crf = ChainCRF(X, Y, range(nl))
+    X_tr, X_te, Y_tr, Y_te = train_test_split(X, Y) # 75/25 split XXX change pct?
+    # TODO split {X/y}_te into val/test
+
+    crf = ChainCRF(X_tr, Y_tr, range(nl))
+
+    ml = ML(crf)
+    ml.train()
+    ml.save_solution('W_ocr_ML_no_reg')
+
+    # sml = SML(crf)
+    # sml.sgd()
+    # sml.save_solution('W_ocr_SML_no_reg')
+
     # test_sample(crf)
     # test_MAP(crf)
     # test_MPM(crf)
     # test_marginals(crf, range(nl))
     # test_E_sum(crf)
     # test_Z(crf, slow=True)
-    test_rmle(crf)
+    # test_rmle(crf)
 
-    crf = ChainCRF(X, Y, range(nl), potts(nl))
+    # crf = ChainCRF(X, Y, range(nl), potts(nl))
     # test_sample(crf, 'scalar')
     # test_MAP(crf,'scalar')
     # test_MPM(crf, 'scalar')
     # test_marginals(crf, range(nl), 'scalar')
-    test_rmle(crf)
+    # test_rmle(crf)
     # test_E_sum(crf)
     # test_Z(crf, 'scalar', slow=False)
