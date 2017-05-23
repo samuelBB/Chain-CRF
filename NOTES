@@ -1,0 +1,34 @@
+Submit:
+report + code for running the experiments.
+
+report:
+1.	The problem: what were you asked to do, Why is it important?
+2.	Solution: what did you implement (pseudocode/formulas). explain idea, show correctness.
+3.	Experiments:
+        -Setting: how do you eval the two funcs? what are the dif settings?
+                  how did you generate data? how did you profile the result?
+                  what did you measure (time/accuracy)?
+        Result+discussion: Show plots (performance comparison).
+                           Discuss result: what did you observe? what do you learn from this observation?
+-Treat this as survey paper of several dif chain-based learning methods. Comparing them in terms of several datasets etc.
+
+TODO:
+ # TODO if time: read gesture data
+ # TODO if time: pseudo-likelihood
+ # TODO if time: train scikit-learn (per-node) linear-kernel SVM
+
+Data:
+ OCR - each char 16*8=128 feats (+ a few oths)
+ synthetic - see if can run matlab, else use own and try to match the matlab
+ Gesture recognition (Chalearn Challenge 2011) -
+    20 batches of data. Within Each batch, one person making dif gestures.
+    Both RGB and depth image videos are recorded.
+    Goal: recognize dif gestures based on the observations.
+    Note that the 20 batches need to be trained/tested sep.
+    Finally an avg performance over 20 batches are reported.
+    Within each batch, first 30 vids for training, last 17 for testing.
+    Preprocessed data are available within the BOF folder.
+    local features employed were HOG and HOF descriptors from both RGB and depth images, based on STIP detector.
+    Each video segment of 30 frame-length was represented by a 60-dimensional bag-of-word (BOW) feature vector.
+
+
