@@ -85,8 +85,10 @@ class Inference:
         return np.array([max((self.marginal(x, W, [(i, l)]), l) for l in self.L)[1]
             for i in xrange(len(x))])
 
-    def Gibbs(self, x, W, n_samples=1, burn=100, interval=1):
-        samples, y_old = [], np.array([choice(self.L) for _ in xrange(len(x))])
+    def Gibbs(self, x, W, n_samples=1, burn=0, interval=1, init=None):
+        y_old = np.array(init) if init is not None else np.array([choice(self.L)
+                                                                 for _ in xrange(len(x))])
+        samples = []
         for j in xrange(burn + n_samples * interval):
             y_new = np.array(y_old)
             for i in xrange(len(x)):

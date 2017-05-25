@@ -115,10 +115,10 @@ def test_MAP(crf, name='concat', slow=False):
 def test_sample(crf, name='concat'):
     Ws = crf.split_W(np.random.rand(crf.n_W))
     x = crf.X[0]
-    ns, burn, intvl = 10, 100, 10
+    ns, burn, intvl = 2, 1, 4
     with timed('gibbs_' + name):
         samps = crf.Gibbs(x, Ws, ns, burn, intvl)
-    print samps
+    print len(samps), samps
 
 
 if __name__ == '__main__':
@@ -133,18 +133,13 @@ if __name__ == '__main__':
     # crf = ChainCRF(X, Y, range(nl), potts(nl))
     crf = ChainCRF(X, Y, range(nl), ocr_bigram_freqs())
 
-    # ml = ML(crf, True, 10, interval=10)
-    # ml.train()
-    # ml.save_solution('W_ocr_ML_no_reg')
-    #
-    # ml = ML(crf, True, 10, interval=10)
-    # ml.train(reg=1.)
-    # ml.save_solution('W_ocr_ML_reg_1')
+    ml = ML(crf, True, n_samples=10, burn=75, interval=10)
+    ml.train(reg=.5)
+    ml.save_solution('W_ocr_ML_reg_1')
 
-    sml = SML(crf, True, burn=1)
-    sml = SML(crf, True)
-    sml.sgd(reg=1.)
-    sml.save_solution('W_ocr_SML_no_reg')
+    # sml = SML(crf, True, True)
+    # sml.sgd(reg=.5)
+    # sml.save_solution('W_ocr_SML_no_reg')
 
     # train_svc_multiple()
 

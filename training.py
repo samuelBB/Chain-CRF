@@ -13,9 +13,10 @@ from evaluation import Evaluator
 
 
 class Learner:
-    def __init__(self, crf, gibbs=False, n_samples=1, burn=100, interval=1, MPM=False):
+    def __init__(self, crf, gibbs=False, cd=False, n_samples=1, burn=0, interval=1, MPM=False):
         self.crf = crf
         self.gibbs = gibbs
+        self.cd = gibbs and cd
         self.E_f = self.exp_feat_gibbs if gibbs else self.exp_feat
         self.n_samples = n_samples
         self.burn = burn
@@ -46,8 +47,8 @@ class Learner:
                 edge_feats[m, n] += np.exp(self.crf.marginal(x,W,[(i,m),(j,n)]) - Z) * ef
         return np.concatenate((node_feats.flatten(), edge_feats.flatten()))
 
-    def exp_feat_gibbs(self, x, W):
-        S = self.crf.Gibbs(x, W, self.n_samples, self.burn, self.interval)
+    def exp_feat_gibbs(self, x, W, y=None):
+        S = self.crf.Gibbs(x, W, self.n_samples, self.burn, self.interval, init=y)
         feats = np.zeros(self.crf.n_W)
         for s in S:
             feats += self.feat(x, s)
@@ -155,9 +156,15 @@ class SML(Learner):
     """
     def grad(self, W, x, y):
         Ws = self.crf.split_W(W)
-        return self.feat(x, y) - self.E_f(x, Ws)
+        exp_f = self.E_f(x, Ws, y) if self.cd else self.E_f(x, Ws)
+        return self.feat(x, y) - exp_f
 
     def sgd(self, lr=1., step=1, n_iters=50000, val=True, val_interval=2500, rand=False, reg=0):
+        """
+        when using Gibbs approximation and the current y is passed to the gradient function,
+        this will perform CD-k (i.e., starting the gibbs sampler from the current y, and
+        sampling one example after a burn-in time of k steps, typically 1)
+        """
         print '[START] SML/SGD Training'
         print '\nTR/VAL/TE SIZES: %s\n' % self.crf.Ns
         grad = self.regularize(reg)[1] if reg > 0 else self.grad
