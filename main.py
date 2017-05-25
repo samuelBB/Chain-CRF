@@ -141,10 +141,10 @@ if __name__ == '__main__':
     # ml.train(reg=1.)
     # ml.save_solution('W_ocr_ML_reg_1')
 
-    # sml = SML(crf, True, 10, interval=10)
-    # sml = SML(crf, True)
-    # sml.sgd(n_iters=10, val_interval=5)
-    # sml.save_solution('W_ocr_SML_no_reg')
+    sml = SML(crf, True, burn=1)
+    sml = SML(crf, True)
+    sml.sgd(reg=1.)
+    sml.save_solution('W_ocr_SML_no_reg')
 
     # train_svc_multiple()
 

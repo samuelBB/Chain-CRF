@@ -165,9 +165,10 @@ class SML(Learner):
         if val: self.val_loss = []
         with timed('SML/SGD', self):
             for i in xrange(1, n_iters+1):
-                print 'Iteration #%s, lr=%s' % (i, lr)
                 r = randint(0, self.crf.N_tr - 1)
-                self.W_opt -= lr * grad(self.W_opt, self.crf.X[r], self.crf.Y[r])
+                g = grad(self.W_opt, self.crf.X[r], self.crf.Y[r])
+                self.W_opt -= lr * g
+                print 'Iteration #%s: lr=%s, |grad|=%s' % (i, lr, np.linalg.norm(g))
                 if step:
                     lr = np.power(.1, np.floor(i * (step+1) / n_iters))
                 if val and i % val_interval == 0:
