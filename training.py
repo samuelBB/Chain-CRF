@@ -99,7 +99,7 @@ class Learner:
 
     def test(self):
         self.test_loss, Ws_opt = [], self.crf.split_W(self.W_opt)
-        for pred in self.crf.MAP: # XXX MPM is slow...
+        for pred in [self.crf.MAP]: # XXX MPM is slow...
             with timed('Testing - Method: %s' % pred.__name__):
                 loss = self.ev(self.crf.Y_t, [pred(x, Ws_opt) for x in self.crf.X_t])
             print '\tTEST LOSS (%s): %s' % (pred.__name__, self.ev.get_names(loss))
@@ -209,11 +209,16 @@ class SML(Learner):
 
 
 def train_gesture():
-    for X, Y, V, S, labels in read_gesture():
-        crf = ChainCRF(X,Y,labels) # XXX scalar model?
-        sml = SML(crf, gibbs=True, cd=True)
+    test_losses = []
+    for X, Y, V, labels in read_gesture():
+        crf = ChainCRF(X,Y,labels, V=V, test_pct=.365, val_pct=.295) # XXX scalar model?
+        sml = SML(crf, gibbs=True, cd=True, n_samps=1, interval=1)
         sml.sgd(rand=True, path='Gesture_SML_reg_1')
-        # TODO get params of model here
+        test_losses.append(sml.test_loss)
+        del crf, sml
+    # for i, tl in enumerate(test_losses):
+
+
     # TODO avg predictions on test set(s) over params of all models
 
 
