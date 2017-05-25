@@ -18,8 +18,9 @@ TODO:
  # TODO if time: train scikit-learn (per-node) linear-kernel SVM
 
 Data:
- OCR - each char 16*8=128 feats (+ a few oths)
- synthetic - see if can run matlab, else use own and try to match the matlab
+ [DONE] OCR - each char 16*8=128 feats (+ a few oths)
+ [DONE] synthetic - see if can run matlab, else use own and try to match the matlab
+
  Gesture recognition (Chalearn Challenge 2011) -
     20 batches of data. Within Each batch, one person making dif gestures.
     Both RGB and depth image videos are recorded.

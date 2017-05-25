@@ -4,8 +4,8 @@ import dill
 import numpy as np
 
 from crf import ChainCRF
-from data import read_ocr, synthetic
-from training import ML, SML, baseline_SVC
+from data import read_ocr, synthetic, potts, ocr_bigram_freqs
+from training import ML, SML, train_svc_multiple
 from utils import timed
 
 
@@ -29,7 +29,7 @@ def test_Z(crf, name='concat', slow=False):
     x = crf.X[0]
     if slow:
         with timed('Z_slow_%s' % name):
-            print crf.Z_slow(x, Ws)
+            print crf.Z_slow(x, *Ws)
     with timed('Z (Z_%s)' % name):
         print crf.Z(x, *Ws)
     if name == 'scalar':
@@ -60,36 +60,37 @@ def test_rmle(crf, parallel=False):
         print X
 
 
-def test_marginals(crf, L, name='concat', e=True, v=True):
+def test_marginals(crf,L,e=True,v=True,slow=False,fast_only=False,const=False,norm=False):
+    if const:
+        np.random.seed(0)
     Ws = crf.split_W(np.random.rand(crf.n_W))
+    # print Ws
     x = crf.X[0]
     import random
     r = random.choice(range(1, len(x) - 1))
     l1, l2 = random.choice(L), random.choice(L)
     D = [(r, l1), (r + 1, l2)]
-    xs,ls = map(list,zip(*D))
+    print D, '\n'
     if e:
         print '[EDGE MARG]'
-        with timed('marg_fast'):
-            print crf.marginal(x, Ws, D)
-        with timed('marg_rec'):
-            if name == 'concat':
-                print crf.marginal_rec_concat(x, Ws, D)
-            else:
-                print crf.marginal_rec_scalar(x,Ws,D)
-        with timed('marginal_slow'):
-            print crf.marginal_slow(x, Ws, xs, ls)
+        with timed('marg_fast_bottomup'):
+            print crf.marginal(x, Ws, D, normalize=norm)
+        if not fast_only:
+            with timed('marg_rec'):
+                print crf.marginal_rec(x, Ws, D, normalize=norm)
+        if slow:
+            with timed('marginal_slow'):
+                print crf.marginal_slow(x, Ws, D, normalize=norm)
     if v:
         print '[VAR MARG]'
         with timed('marg_fast'):
-            print crf.marginal(x, Ws, [D[0]])
-        with timed('marg_rec'):
-            if name == 'concat':
-                print crf.marginal_rec_concat(x, Ws, [D[0]])
-            else:
-                print crf.marginal_rec_scalar(x,Ws,[D[0]])
-        with timed('marginal_slow'):
-            print crf.marginal_slow(x, Ws, [D[0][0]], [D[0][1]])
+            print crf.marginal(x, Ws, [D[0]], normalize=norm)
+        if not fast_only:
+            with timed('marg_rec'):
+                print crf.marginal_rec(x, Ws, [D[0]], normalize=norm)
+        if slow:
+            with timed('marginal_slow'):
+                print crf.marginal_slow(x, Ws, [D[0]], normalize=norm)
 
 
 def test_MPM(crf, name='concat'):
@@ -103,7 +104,7 @@ def test_MAP(crf, name='concat', slow=False):
     Ws = crf.split_W(np.random.rand(crf.n_W))
     x = crf.X[0]
     with timed('MAP_' + name):
-        v,y = crf.MAP(x, Ws)
+        v,y = crf.MAP(x, Ws, only_label=False)
     print v,y,'evald', crf.E(x, y, Ws)
     if slow:
         with timed('MAP_slow_' + name):
@@ -114,21 +115,23 @@ def test_MAP(crf, name='concat', slow=False):
 def test_sample(crf, name='concat'):
     Ws = crf.split_W(np.random.rand(crf.n_W))
     x = crf.X[0]
-    ns, burn, intvl, shuf = 20, 11, 8, False
+    ns, burn, intvl = 10, 100, 10
     with timed('gibbs_' + name):
-        samps = crf.gibbs(x, Ws, ns, burn, intvl, shuf)
-    print len(samps), samps
+        samps = crf.Gibbs(x, Ws, ns, burn, intvl)
+    print samps
 
 
 if __name__ == '__main__':
-    # nl = 2
-    # data = synthetic(250, seq_len_range=(4, 7), n_feats=10, n_labels=nl)
+    # nl = 4
+    # data = synthetic(500, seq_len_range=(4, 8), n_feats=8, n_labels=nl)
     nl = 26
     data = read_ocr()
     X,Y = zip(*data)
 
-    crf = ChainCRF(X, Y, range(nl))
+    # crf = ChainCRF(X, Y, range(nl))
+
     # crf = ChainCRF(X, Y, range(nl), potts(nl))
+    crf = ChainCRF(X, Y, range(nl), ocr_bigram_freqs())
 
     # ml = ML(crf, True, 10, interval=10)
     # ml.train()
@@ -139,16 +142,18 @@ if __name__ == '__main__':
     # ml.save_solution('W_ocr_ML_reg_1')
 
     # sml = SML(crf, True, 10, interval=10)
-    # sml.sgd()
+    # sml = SML(crf, True)
+    # sml.sgd(n_iters=10, val_interval=5)
     # sml.save_solution('W_ocr_SML_no_reg')
 
-    svc = baseline_SVC(crf)
-    dill.dump(svc, 'ocr_svc_default.p')
+    # train_svc_multiple()
 
+    # Ws = crf.split_W(np.random.rand(crf.n_W))
     # test_sample(crf)
+
     # test_MAP(crf)
     # test_MPM(crf)
-    # test_marginals(crf, range(nl))
+    # test_marginals(crf, range(nl), norm=True, slow=True)
     # test_E_sum(crf)
     # test_Z(crf, slow=True)
     # test_rmle(crf)
@@ -156,7 +161,6 @@ if __name__ == '__main__':
     # test_sample(crf, 'scalar')
     # test_MAP(crf,'scalar')
     # test_MPM(crf, 'scalar')
-    # test_marginals(crf, range(nl), 'scalar')
     # test_rmle(crf)
     # test_E_sum(crf)
-    # test_Z(crf, 'scalar', slow=False)
+    # test_Z(crf, 'scalar', slow=True)

@@ -36,38 +36,50 @@ class Inference:
     def Z_PL(self, x, y, W, s):
         return lse([-self.E_PL(x, y, W, s, l) for l in self.L])
 
-    def marginal(self, x, (W_u, W_b), pairs):
+    def marginal(self, x, (W_u, W_b), pairs, normalize=False, logscale=True):
         """
-        unnormalized fast node/edge marginals
+        fast log-scale node/edge marginals (optional: normalize with Z)
         pairs: 
          1) node marginal - [(i,v)] where i=node-index and v=clamped-value - P(y_i=v)
          2) edge marginal - [(i,u),(j,v)] for P(y_i=u, y_j=v)
         """
         if len(pairs) == 1:
-            (i, u), (j, v) = pairs * 2
+            (i, u), (j, u2) = pairs * 2
             prob = -np.dot(x[i], W_u[u])
         else:
-            (i, u), (j, v) = pairs
-            prob = -sum(np.dot(x[k],W_u[w]) for k,w in pairs) - self.B_term(W_b, x, j, (u,v))
+            (i, u), (j, u2) = pairs
+            prob = -sum(np.dot(x[k],W_u[w]) for k,w in pairs) - self.B_term(W_b,x,j,(u,u2))
         if i > 0:
-            L = np.full((2, self.n_labels), 1.)
-            for k in xrange(i - 1):
-                for n in self.L:
-                    L[1, n] = sum(np.exp(-np.dot(x[k], W_u[m]) - self.B_term(
-                        W_b, x, k+1, (m, n))) * L[0, m] for m in self.L)
-                L[0], L[1] = L[1], 0.
-            prob += lse([(-np.dot(x[i - 1], W_u[m]) - self.B_term(W_b, x, i, (m, u))) +
-                np.log(L[0, m]) for m in self.L])
-        if j < len(x) - 1:
-            R = np.full((2, self.n_labels), 1.)
-            for k in xrange(len(x)-1, j+1, -1):
+            left = np.zeros((2, self.n_labels))
+            if i > 1:
                 for m in self.L:
-                    R[1, m] = sum(np.exp(-np.dot(x[k], W_u[n]) - self.B_term(
-                        W_b, x, k, (m, n))) * R[0, n] for n in self.L)
-                R[0], R[1] = R[1], 0.
-            prob += lse([(-np.dot(x[j + 1], W_u[n]) - self.B_term(W_b, x, j + 1, (v, n)) +
-                np.log(R[0, n])) for n in self.L])
-        return prob[0] if hasattr(prob, '__len__') else prob
+                    left[0, m] = lse([-np.dot(x[0], W_u[l]) - self.B_term(W_b, x, 1, (l, m))
+                        for l in self.L])
+            for v in range(2, i):
+                for m in self.L:
+                    left[1, m] = lse([left[0, l] - self.B_term(W_b, x, v, (l, m))
+                        - np.dot(x[v - 1], W_u[l]) for l in self.L])
+                left[0], left[1] = left[1], 0.
+            prob += lse([left[0, l] - np.dot(x[i - 1], W_u[l]) - self.B_term(W_b, x, i, (l, u))
+                for l in self.L])
+        if j < len(x) - 1:
+            right = np.zeros((2, self.n_labels))
+            if j < len(x) - 2:
+                for m in self.L:
+                    right[0, m] = lse([-np.dot(x[-1], W_u[l]) - self.B_term(W_b, x, -1, (m, l))
+                        for l in self.L])
+            for v in range(len(x) - 3, j, -1):
+                for m in self.L:
+                    right[1, m] = lse([right[0, l] - self.B_term(W_b, x, v + 1, (m, l))
+                        - np.dot(x[v + 1], W_u[l]) for l in self.L])
+                right[0], right[1] = right[1], 0.
+            prob += lse([right[0, l] - self.B_term(W_b, x, j + 1, (u2, l))
+                - np.dot(x[j + 1], W_u[l]) for l in self.L])
+        if normalize:
+            prob -= self.Z(x, W_u, W_b)
+        if not logscale:
+            prob = np.exp(prob)
+        return prob
 
     def MPM(self, x, W):
         return np.array([max((self.marginal(x, W, [(i, l)]), l) for l in self.L)[1]
@@ -76,10 +88,10 @@ class Inference:
     def Gibbs(self, x, W, n_samples=1, burn=100, interval=1):
         samples, y_old = [], np.array([choice(self.L) for _ in xrange(len(x))])
         for j in xrange(burn + n_samples * interval):
-            y_new = y_old.copy()
+            y_new = np.array(y_old)
             for i in xrange(len(x)):
-                y_new[i] = np.random.choice(self.L, p=softmax(np.array(
-                    [-self.E(x, self.set_idxs(y_new, i, l), W) for l in self.L])))
+                Es = np.array([-self.E(x, self.set_idxs(y_new, i, l), W) for l in self.L])
+                y_new[i] = np.random.choice(self.L, p=softmax(Es))
             if j >= burn and j % interval == 0:
                 samples.append(y_new)
         return samples
@@ -92,16 +104,24 @@ class SlowInference:
     def Z_slow(self, x, *W):
         return lse([-self.E(x, y, W) for y in self.configs(len(x))])
 
-    def marginal_slow(self, x, W, pairs):
+    def marginal_slow(self, x, W, pairs, normalize=False, logscale=True):
         """
         unnormalized
         """
         I, V = map(list, zip(*pairs))
         J, y = sorted(set(xrange(len(x))) - set(I)), self.set_idxs(np.zeros(len(x), int), I, V)
-        return lse([-self.E(x, self.set_idxs(y, J, c), W) for c in self.configs(len(J))])
+        prob = lse([-self.E(x, self.set_idxs(y, J, c), W) for c in self.configs(len(J))])
+        if normalize:
+            prob -= self.Z(x, *W)
+        if not logscale:
+            prob = np.exp(prob)
+        return prob
 
 
 class Other:
+    """
+    "semi"-efficient inference and misc. helper funcs
+    """
     def Z_full_DP_scalar(self, x, W_u, W_b):
         z = np.vstack([-np.dot(W_u, x[0]), np.zeros(W_u.shape[0])])
         for i in xrange(1, len(x)):
@@ -130,52 +150,39 @@ class Other:
             z[0], z[1] = z[1], 0.
         return lse(z[0])
 
-    def u_a(self, x, W, i, v):
-        return sum(np.exp(-np.dot(x[i - 1], W[0][l]) - W[1][l, v] * self.phi_B[l, v]) * (
-            self.u_a(x, W, i - 1, l) if i > 1 else 1.) for l in self.L)
+    def marg_helper(self, x, W_u, W_b, i, val, up=False):
+        """ helper """
+        if i in (0, len(x) - 1):
+            return 0.
+        j = i+1 if up else i-1
+        k = i+1 if up else i
+        pair = lambda m: (val, m) if up else (m, val)
+        msgs = []
+        for l in self.L:
+            msg = -np.dot(x[j], W_u[l]) - self.B_term(W_b, x, k, pair(l))
+            if 0 < j < len(x) - 1:
+                msg += self.marg_helper(x, W_u, W_b, j, l, up)
+            msgs.append(msg)
+        return lse(msgs)
 
-    def u_b(self, x, W, i, v):
-        return sum(np.exp(-np.dot(x[i + 1], W[0][l]) - W[1][v, l] * self.phi_B[v, l]) * (
-            self.u_b(x, W, i + 1, l) if i < len(x) - 2 else 1.) for l in self.L)
-
-    def marginal_rec_scalar(self, x, W, pairs):
+    def marginal_rec(self, x, (W_u, W_b), pairs, normalize=False, logscale=True):
         """
-        fast node/edge marginals 
-        """
-        if len(pairs) == 1:
-            (i, u), (j, v) = pairs * 2
-            prob = -np.dot(x[i], W[0][u])
-        else:
-            (i, u), (j, v) = pairs
-            prob = -sum(np.dot(x[k], W[0][w]) for k, w in pairs) - W[1][u, v] * self.phi_B[u, v]
-        if i > 0:
-            prob += np.log(self.u_a(x, W, i, u))
-        if j < len(x)-1:
-            prob += np.log(self.u_b(x, W, j, v))
-        return prob
-
-    def u_a_c(self, x, W, i, v):
-        return sum(np.exp(-np.dot(x[i - 1], W[0][l]) - self.B_term(W[1],x,i,(l,v))) * (
-            self.u_a_c(x, W, i - 1, l) if i > 1 else 1.) for l in self.L)
-
-    def u_b_c(self, x, W, i, v):
-        return sum(np.exp(-np.dot(x[i + 1], W[0][l]) - self.B_term(W[1],x,i+1,(v,l))) * (
-            self.u_b_c(x, W, i + 1, l) if i < len(x) - 2 else 1.) for l in self.L)
-
-    def marginal_rec_concat(self, x, W, pairs):
-        """
-        fast node/edge marginals 
+        fast node/edge marginals
+        pairs:
+         1) node marginal - [(i,v)] where i=node-index and v=clamped-value - P(y_i=v)
+         2) edge marginal - [(i,u),(j,v)] for P(y_i=u, y_j=v)
         """
         if len(pairs) == 1:
             (i, u), (j, v) = pairs * 2
-            prob = -np.dot(x[i], W[0][u])
+            prob = -np.dot(x[i], W_u[u])
         else:
             (i, u), (j, v) = pairs
-            prob = -sum(np.dot(x[k], W[0][w]) for k, w in pairs) - self.B_term(W[1],x,j,(u,v))
-        if i > 0:
-            prob += np.log(self.u_a_c(x, W, i, u))
-        if j < len(x)-1:
-            prob += np.log(self.u_b_c(x, W, j, v))
+            prob = -sum(np.dot(x[k],W_u[w]) for k,w in pairs) - self.B_term(W_b, x, j, (u,v))
+        prob += self.marg_helper(x,W_u,W_b,i,u) + self.marg_helper(x,W_u,W_b,j,v,True)
+        if normalize:
+            prob -= self.Z(x, W_u, W_b)
+        if not logscale:
+            prob = np.exp(prob)
         return prob
 
     def featurize(self, x, y):
@@ -211,3 +218,12 @@ class Other:
             else:
                 B[i, y1, y2, 0] = self.phi_B[y1, y2]
         return U, B
+
+    def featurize_agg(self, fold=''):
+        return [self.featurize(x, y) for x, y in self.XY(fold)]
+
+    def E_old(self, x, W):
+        return (x[0]*W[0]).sum() + (x[1]*W[1]).sum()
+
+    def E_agg(self, phis, W):
+        return sum(self.E_old(phi, W) for phi in phis)
