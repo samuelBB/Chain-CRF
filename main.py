@@ -138,7 +138,7 @@ if __name__ == '__main__':
     # ml.save_solution('W_ocr_ML_reg_1')
 
     sml = SML(crf, gibbs=True, cd=True)
-    sml.sgd(reg=.7, rand=True)
+    sml.sgd(rand=True)
     sml.save_solution('W_ocr_SML_no_reg')
 
     # train_svc_multiple()

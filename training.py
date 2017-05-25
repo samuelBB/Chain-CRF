@@ -161,7 +161,7 @@ class SML(Learner):
         exp_f = self.E_f(x, Ws, y) if self.cd else self.E_f(x, Ws)
         return self.feat(x, y) - exp_f
 
-    def sgd(self, lr=.1, step=1, n_iters=100000, val_interval=2500, rand=False, reg=.7):
+    def sgd(self, lr_init=.1, step=1, n_iters=100000, val_interval=2500, rand=False, reg=1.):
         """
         when using Gibbs approximation and the current y is passed to the gradient function,
         this will perform CD-k (i.e., starting the gibbs sampler from the current y, and
@@ -169,7 +169,8 @@ class SML(Learner):
         """
         print '[START] SML/SGD Training\n\nTR/VAL/TE SIZES: %s\n' % self.crf.Ns
         grad = self.regularize(reg)[1] if reg > 0 else self.grad
-        self.val_loss, self.W_opt = [], (np.random.rand if rand else np.zeros)(self.crf.n_W)
+        self.W_opt = (np.random.rand if rand else np.zeros)(self.crf.n_W)
+        self.val_loss, lr = [], lr_init
         with timed('SML/SGD', self):
             try:
                 for i in xrange(1, n_iters+1):
@@ -178,7 +179,7 @@ class SML(Learner):
                     self.W_opt -= lr * g
                     print 'Iteration #%s: lr=%s, |grad|=%s' % (i, lr, np.linalg.norm(g))
                     if step:
-                        lr = np.power(.1, np.floor(i * (step+1) / n_iters))
+                        lr = lr_init * np.power(.1, np.floor(i * (step+1) / n_iters))
                     if i % val_interval == 0:
                         Ws = self.crf.split_W(self.W_opt)
                         with timed('Validation Iter'):
