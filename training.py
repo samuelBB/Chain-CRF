@@ -12,6 +12,16 @@ from utils import timed, mkdir_p
 from evaluation import Evaluator
 
 
+def test_and_save(train):
+    """ sweet deco which adds auto testing+saving """
+    def _train_test_save(self, W=None, rand=False, path='', *a, **k):
+        if not hasattr(self, 'W_opt'):
+            self.W_init(W, rand)
+        outs = train(self, *a, **k), self.test(), self.save_solution(path)
+        return zip(('tr', 'te', 'sav'), outs)
+    return _train_test_save
+
+
 class Learner:
     def __init__(self, crf, gibbs=False, cd=False, n_samps=5, burn=5, interval=5, MPM=False):
         self.crf = crf
@@ -80,20 +90,10 @@ class Learner:
             if hasattr(self, s + '_loss'):
                 print '\t[INFO] Serializing %s_loss array' % s
                 np.save(join(path, s + '_loss'), getattr(self, s + '_loss'))
+        return path
 
-    def train(self, method='L-BFGS-B', disp=True, reg=0, maxiter=400):
-        """
-        if implementing self.{obj(W),grad(W)} to be used with scipy optimization 
-        """
-        obj, grad = self.regularize(reg) if reg > 0 else (self.obj, self.grad)
-        init = np.zeros(self.crf.n_W)
-        def log_W(W):
-            print 'curent W - obj: %s, norm: %s' % (obj(W), np.linalg.norm(W))
-        with timed('Scipy Opt: %s' % method, self):
-            self.opt = minimize(obj, init, method=method, jac=grad, callback=log_W,
-                options={'maxiter': maxiter, 'disp': disp})
-        self.W_opt = self.opt.x
-        self.test()
+    def W_init(self, W=None, rand=False):
+        self.W_opt = (np.random.rand if rand else np.zeros)(self.crf.n_W) if W is None else W
         return self.W_opt
 
     def test(self):
@@ -103,6 +103,22 @@ class Learner:
                 loss = self.ev(self.crf.Y_t, [pred(x, Ws_opt) for x in self.crf.X_t])
             print '\tTEST LOSS (%s): %s' % (pred.__name__, self.ev.get_names(loss))
             self.test_loss.append(loss)
+        return self.test_loss
+
+    @test_and_save
+    def train(self, reg=1., method='L-BFGS-B', disp=True, maxiter=100):
+        """
+        if implementing self.{obj(W),grad(W)} to be used with scipy optimization 
+        """
+        obj, grad = self.regularize(reg) if reg > 0 else (self.obj, self.grad)
+        def log_W(W):
+            # XXX validate here? would be after every iter...fine?
+            print 'current W - obj: %s, norm: %s' % (obj(W), np.linalg.norm(W))
+        with timed('Scipy Opt: %s' % method, self):
+            self.opt = minimize(obj, self.W_opt, method=method, jac=grad, callback=log_W,
+                options={'maxiter': maxiter, 'disp': disp})
+        self.W_opt = self.opt.x # XXX necess?
+        return self.W_opt
 
 
 class ML(Learner):
@@ -161,7 +177,8 @@ class SML(Learner):
         exp_f = self.E_f(x, Ws, y) if self.cd else self.E_f(x, Ws)
         return self.feat(x, y) - exp_f
 
-    def sgd(self, lr_init=.1, step=1, n_iters=100000, val_interval=2500, rand=False, reg=1.):
+    @test_and_save
+    def sgd(self, reg=1., lr_init=.1, step=1, n_iters=100000, val_interval=2500):
         """
         when using Gibbs approximation and the current y is passed to the gradient function,
         this will perform CD-k (i.e., starting the gibbs sampler from the current y, and
@@ -169,7 +186,6 @@ class SML(Learner):
         """
         print '[START] SML/SGD Training\n\nTR/VAL/TE SIZES: %s\n' % self.crf.Ns
         grad = self.regularize(reg)[1] if reg > 0 else self.grad
-        self.W_opt = (np.random.rand if rand else np.zeros)(self.crf.n_W)
         self.val_loss, lr = [], lr_init
         with timed('SML/SGD', self):
             try:
@@ -188,8 +204,7 @@ class SML(Learner):
                         self.val_loss.append(loss)
             except KeyboardInterrupt:
                 print '\nINFO - Manually exited train loop at Iteration %s' % i
-        self.test()
-        return self.W_opt
+        return self.W_opt, self.val_loss
 
 
 def train_svc(crf, C=1., loss='squared_hinge', penalty='l2'):
