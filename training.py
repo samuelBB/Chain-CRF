@@ -13,12 +13,12 @@ from evaluation import Evaluator
 
 
 class Learner:
-    def __init__(self, crf, gibbs=False, cd=False, n_samples=1, burn=0, interval=1, MPM=False):
+    def __init__(self, crf, gibbs=False, cd=False, n_samps=5, burn=5, interval=5, MPM=False):
         self.crf = crf
         self.gibbs = gibbs
         self.cd = gibbs and cd
         self.E_f = self.exp_feat_gibbs if gibbs else self.exp_feat
-        self.n_samples = n_samples
+        self.n_samples = n_samps
         self.burn = burn
         self.interval = interval
         self.pred = self.crf.MPM if MPM else self.crf.MAP
@@ -72,10 +72,13 @@ class Learner:
         """ NOTE must have trained already """
         path = join('results', path, datetime.now().strftime('%Y-%-m-%-d_%-H-%-M-%-S'))
         mkdir_p(path)
+        print '\n[DONE] Made results folder: %s' % path
         if hasattr(self, 'W_opt') and hasattr(self, 'train_time'):
+            print '\t[INFO] Serializing W_opt'
             np.save(join(path, 'W_opt_{:.2f}'.format(self.train_time)), self.W_opt)
         for s in 'val', 'test':
             if hasattr(self, s + '_loss'):
+                print '\t[INFO] Serializing %s_loss array' % s
                 np.save(join(path, s + '_loss'), getattr(self, s + '_loss'))
 
     def train(self, method='L-BFGS-B', disp=True, reg=0, maxiter=400):
@@ -90,17 +93,16 @@ class Learner:
             self.opt = minimize(obj, init, method=method, jac=grad, callback=log_W,
                 options={'maxiter': maxiter, 'disp': disp})
         self.W_opt = self.opt.x
-        self.test_loss = self.test()
+        self.test()
         return self.W_opt
 
     def test(self):
-        losses, Ws_opt = [], self.crf.split_W(self.W_opt)
-        for pred in self.crf.MPM, self.crf.MAP:
+        self.test_loss, Ws_opt = [], self.crf.split_W(self.W_opt)
+        for pred in self.crf.MAP, self.crf.MPM:
             with timed('Testing - Method: %s' % pred.__name__):
                 loss = self.ev(self.crf.Y_t, [pred(x, Ws_opt) for x in self.crf.X_t])
             print '\tTEST LOSS (%s): %s' % (pred.__name__, self.ev.get_names(loss))
-            losses.append(loss)
-        return losses
+            self.test_loss.append(loss)
 
 
 class ML(Learner):
@@ -159,32 +161,33 @@ class SML(Learner):
         exp_f = self.E_f(x, Ws, y) if self.cd else self.E_f(x, Ws)
         return self.feat(x, y) - exp_f
 
-    def sgd(self, lr=1., step=1, n_iters=50000, val=True, val_interval=2500, rand=False, reg=0):
+    def sgd(self, lr=.1, step=1, n_iters=100000, val_interval=2500, rand=False, reg=.7):
         """
         when using Gibbs approximation and the current y is passed to the gradient function,
         this will perform CD-k (i.e., starting the gibbs sampler from the current y, and
         sampling one example after a burn-in time of k steps, typically 1)
         """
-        print '[START] SML/SGD Training'
-        print '\nTR/VAL/TE SIZES: %s\n' % self.crf.Ns
+        print '[START] SML/SGD Training\n\nTR/VAL/TE SIZES: %s\n' % self.crf.Ns
         grad = self.regularize(reg)[1] if reg > 0 else self.grad
-        self.W_opt = (np.random.rand if rand else np.zeros)(self.crf.n_W)
-        if val: self.val_loss = []
+        self.val_loss, self.W_opt = [], (np.random.rand if rand else np.zeros)(self.crf.n_W)
         with timed('SML/SGD', self):
-            for i in xrange(1, n_iters+1):
-                r = randint(0, self.crf.N_tr - 1)
-                g = grad(self.W_opt, self.crf.X[r], self.crf.Y[r])
-                self.W_opt -= lr * g
-                print 'Iteration #%s: lr=%s, |grad|=%s' % (i, lr, np.linalg.norm(g))
-                if step:
-                    lr = np.power(.1, np.floor(i * (step+1) / n_iters))
-                if val and i % val_interval == 0:
-                    Ws = self.crf.split_W(self.W_opt)
-                    with timed('Validation Iter'):
-                        loss = self.ev(self.crf.Y_v, [self.pred(x, Ws) for x in self.crf.X_v])
-                    print '\tVAL LOSS: %s\n' % self.ev.get_names(loss)
-                    self.val_loss.append(loss)
-        self.test_loss = self.test()
+            try:
+                for i in xrange(1, n_iters+1):
+                    r = randint(0, self.crf.N_tr - 1)
+                    g = grad(self.W_opt, self.crf.X[r], self.crf.Y[r])
+                    self.W_opt -= lr * g
+                    print 'Iteration #%s: lr=%s, |grad|=%s' % (i, lr, np.linalg.norm(g))
+                    if step:
+                        lr = np.power(.1, np.floor(i * (step+1) / n_iters))
+                    if i % val_interval == 0:
+                        Ws = self.crf.split_W(self.W_opt)
+                        with timed('Validation Iter'):
+                            loss = self.ev(self.crf.Y_v,[self.pred(x,Ws) for x in self.crf.X_v])
+                        print '\tVAL LOSS: %s\n' % self.ev.get_names(loss)
+                        self.val_loss.append(loss)
+            except KeyboardInterrupt:
+                print '\nINFO - Manually exited train loop at Iteration %s' % i
+        self.test()
         return self.W_opt
 
 

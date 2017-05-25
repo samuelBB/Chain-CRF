@@ -131,15 +131,15 @@ if __name__ == '__main__':
     # crf = ChainCRF(X, Y, range(nl))
 
     # crf = ChainCRF(X, Y, range(nl), potts(nl))
-    crf = ChainCRF(X, Y, range(nl), ocr_bigram_freqs())
+    crf = ChainCRF(X, Y, range(nl), ocr_bigram_freqs() * 100.)
 
-    ml = ML(crf, True, n_samples=10, burn=75, interval=10)
-    ml.train(reg=.5)
-    ml.save_solution('W_ocr_ML_reg_1')
+    # ml = ML(crf, gibbs=True, n_samps=10, burn=75, interval=10)
+    # ml.train(reg=.5)
+    # ml.save_solution('W_ocr_ML_reg_1')
 
-    # sml = SML(crf, True, True)
-    # sml.sgd(reg=.5)
-    # sml.save_solution('W_ocr_SML_no_reg')
+    sml = SML(crf, gibbs=True, cd=True)
+    sml.sgd(reg=.7, rand=True)
+    sml.save_solution('W_ocr_SML_no_reg')
 
     # train_svc_multiple()
 
