@@ -1,5 +1,3 @@
-from itertools import izip
-
 import numpy as np
 from scandir import scandir
 from scipy.io import loadmat
@@ -55,15 +53,14 @@ def read_gesture(path='datasets/BOFData'):
     """
     for f in scandir(path):
         mat = loadmat(f.path)
-        X, Y, V, S, label = [], [], [], [], -1
+        X, Y, V, label = [], [], [], -1
         for s, size in ('tr', mat['BOF_tr_K'].shape[1]), ('te', mat['BOF_te_K'].shape[1]):
-            S.append(size)
             for i in range(size):
                 X.append(np.hstack((mat['BOF_'+s+'_K'][0, i], mat['BOF_'+s+'_M'][0, i])))
                 Y.append(np.squeeze(mat['label_'+s][0, i]))
                 label = max(label, Y[-1].max())
                 V.append(mat['videoId_'+s][0, i][0])
-        yield X, Y, V, S, range(label+1)
+        yield X, Y, V, range(label+1)
 
 
 if __name__ == '__main__':

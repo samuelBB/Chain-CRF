@@ -2,13 +2,6 @@ from itertools import izip
 
 import numpy as np
 
-# TODO
-# Plot loss as function of #iters; train loss/val loss? both?
-# Time:
-# a. Inference time
-# b. Training time
-from utils import timed
-
 
 class Evaluator:
     def __init__(self, hamming=True, zero1=True):
@@ -42,4 +35,6 @@ if __name__ == '__main__':
     y_pred = [[1, 2, 3, 5], [4, 5], [7, 8, 9]]
 
     ev = Evaluator()
-    print zip(ev.metric_names, ev(y_true, y_pred))
+    losses = ev(y_true, y_pred)
+    print losses
+    print ev.get_names(losses)

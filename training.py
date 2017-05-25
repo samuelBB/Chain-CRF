@@ -8,6 +8,7 @@ import numpy as np
 from sklearn import svm
 from scipy.optimize import minimize, check_grad as cg, approx_fprime
 
+from crf import ChainCRF
 from data import read_gesture
 from utils import timed, mkdir_p
 from evaluation import Evaluator
@@ -97,12 +98,10 @@ class Learner:
         return self.W_opt
 
     def test(self):
-        self.test_loss, Ws_opt = [], self.crf.split_W(self.W_opt)
-        for pred in [self.crf.MAP]: # XXX MPM is slow...
-            with timed('Testing - Method: %s' % pred.__name__):
-                loss = self.ev(self.crf.Y_t, [pred(x, Ws_opt) for x in self.crf.X_t])
-            print '\tTEST LOSS (%s): %s' % (pred.__name__, self.ev.get_names(loss))
-            self.test_loss.append(loss)
+        Ws = self.crf.split_W(self.W_opt)
+        with timed('TEST SET - MAP Prediction'):
+            self.test_loss = self.ev(self.crf.Y_t, [self.crf.MAP(x, Ws) for x in self.crf.X_t])
+        print '\tLOSS: %s' % self.ev.get_names(self.test_loss)
         return self.test_loss
 
     @test_and_save
@@ -199,7 +198,8 @@ class SML(Learner):
                     if i % val_interval == 0:
                         Ws = self.crf.split_W(self.W_opt)
                         with timed('Validation Iter'):
-                            loss = self.ev(self.crf.Y_v,[self.crf.MAP(x,Ws) for x in self.crf.X_v])
+                            loss = self.ev(self.crf.Y_v,
+                                [self.crf.MAP(x,Ws) for x in self.crf.X_v])
                         print '\tVAL LOSS: %s\n' % self.ev.get_names(loss)
                         self.val_loss.append(loss)
             except KeyboardInterrupt:
@@ -211,14 +211,13 @@ def train_gesture():
     test_losses = []
     for X, Y, V, labels in read_gesture():
         crf = ChainCRF(X,Y,labels, V=V, test_pct=.365, val_pct=.295) # XXX scalar model?
-        sml = SML(crf, gibbs=True, cd=True, n_samps=1, interval=1)
+        sml = SML(crf, gibbs=True, cd=True, n_samps=1, burn=1, interval=1)
         sml.sgd(rand=True, path='Gesture_SML_reg_1')
         test_losses.append(sml.test_loss)
         del crf, sml
-    # for i, tl in enumerate(test_losses):
-
-
-    # TODO avg predictions on test set(s) over params of all models
+    loss = map(np.array, zip(*test_losses))
+    avg_loss = map(np.mean, loss)
+    print '\nAggregated Mean Test Loss: %s' % avg_loss
 
 
 def train_svc(crf, C=1., loss='squared_hinge', penalty='l2'):

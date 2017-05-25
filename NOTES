@@ -12,10 +12,16 @@ report:
                            Discuss result: what did you observe? what do you learn from this observation?
 -Treat this as survey paper of several dif chain-based learning methods. Comparing them in terms of several datasets etc.
 
-TODO:
+TODO
  # TODO if time: read gesture data
  # TODO if time: pseudo-likelihood
  # TODO if time: train scikit-learn (per-node) linear-kernel SVM
+
+TODO
+# Plot loss as function of #iters; train loss/val loss? both?
+# Time:
+# a. Inference time
+# b. Training time
 
 Data:
  [DONE] OCR - each char 16*8=128 feats (+ a few oths)
