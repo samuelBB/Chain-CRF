@@ -8,6 +8,7 @@ import numpy as np
 from sklearn import svm
 from scipy.optimize import minimize, check_grad as cg, approx_fprime
 
+from data import read_gesture
 from utils import timed, mkdir_p
 from evaluation import Evaluator
 
@@ -98,7 +99,7 @@ class Learner:
 
     def test(self):
         self.test_loss, Ws_opt = [], self.crf.split_W(self.W_opt)
-        for pred in self.crf.MAP, self.crf.MPM:
+        for pred in self.crf.MAP: # XXX MPM is slow...
             with timed('Testing - Method: %s' % pred.__name__):
                 loss = self.ev(self.crf.Y_t, [pred(x, Ws_opt) for x in self.crf.X_t])
             print '\tTEST LOSS (%s): %s' % (pred.__name__, self.ev.get_names(loss))
@@ -205,6 +206,15 @@ class SML(Learner):
             except KeyboardInterrupt:
                 print '\nINFO - Manually exited train loop at Iteration %s' % i
         return self.W_opt, self.val_loss
+
+
+def train_gesture():
+    for X, Y, V, S, labels in read_gesture():
+        crf = ChainCRF(X,Y,labels) # XXX scalar model?
+        sml = SML(crf, gibbs=True, cd=True)
+        sml.sgd(rand=True, path='Gesture_SML_reg_1')
+        # TODO get params of model here
+    # TODO avg predictions on test set(s) over params of all models
 
 
 def train_svc(crf, C=1., loss='squared_hinge', penalty='l2'):

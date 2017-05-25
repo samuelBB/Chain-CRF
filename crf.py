@@ -7,7 +7,7 @@ from inference import Inference, SlowInference, Other
 
 
 class ChainCRF(Inference, SlowInference, Other):
-    def __init__(self, X, Y, L, phi_B=None, test_pct=None, val_pct=.4, seed=42):
+    def __init__(self, X, Y, L, phi_B=None, test_pct=None, val_pct=.4, seed=42, V=None):
         """ 
         :param X:
          training examples (n_features = number of unary features per variable)
@@ -27,10 +27,16 @@ class ChainCRF(Inference, SlowInference, Other):
         :seed:
          fixed random seed for "random" train/test/val split reproducibility 
         """
-        self.X, X_tv, self.Y, Y_tv = train_test_split(
-            X, Y, test_size=test_pct, random_state=seed)
-        self.X_t, self.X_v, self.Y_t, self.Y_v = train_test_split(
-            X_tv, Y_tv, test_size=val_pct, random_state=seed)
+        if V is None:
+            self.X, X_tv, self.Y, Y_tv = train_test_split(
+                X, Y, test_size=test_pct, random_state=seed)
+            self.X_t, self.X_v, self.Y_t, self.Y_v = train_test_split(
+                X_tv, Y_tv, test_size=val_pct, random_state=seed)
+        else: # gesture
+            self.X, X_tv, self.Y, Y_tv, self.V, V_tv = train_test_split(
+                X, Y, V, test_size=test_pct, random_state=seed)
+            self.X_t, self.X_v, self.Y_t, self.Y_v, self.V_t, self.V_v  = train_test_split(
+                X_tv, Y_tv, V_tv, test_size=val_pct, random_state=seed)
         self.Ns = self.N_tr, self.N_v, self.N_t = map(len, (self.X, self.X_v, self.X_t))
         self.L = L
         self.n_labels = len(self.L)

@@ -133,10 +133,10 @@ if __name__ == '__main__':
     crf = ChainCRF(X, Y, range(nl), ocr_bigram_freqs() * 100.)
 
     # ml = ML(crf, gibbs=True, n_samps=10, burn=50, interval=10)
-    # ml.train(rand=True, path='W_ocr_ML_reg_1')
+    # ml.train(rand=True, path='OCR_ML_reg_1')
 
     sml = SML(crf, gibbs=True, cd=True)
-    sml.sgd(rand=True, path='W_ocr_SML_no_reg')
+    sml.sgd(rand=True, path='OCR_SML_reg_1')
 
     # train_svc_multiple()
 

@@ -1,3 +1,5 @@
+from itertools import izip
+
 import numpy as np
 from scandir import scandir
 from scipy.io import loadmat
@@ -45,12 +47,23 @@ def ocr_bigram_freqs():
     return np.load('datasets/OCR/bigram_freqs.npy')[..., None] # XXX expand
 
 
-# TODO finish
 def read_gesture(path='datasets/BOFData'):
+    """ 
+    NOTE for tr/te/v split = 30/12/5, use test_pct=.3617, val_pct=.2941
+    NOTE one .mat file has 30/16 split (all others 30/17)
+    NOTE label set = [0,1,...,x] where x in [8,9,10,11,12,13]
+    """
     for f in scandir(path):
         mat = loadmat(f.path)
-        m = mat['BOF_tr_K']
-        return m
+        X, Y, V, S, label = [], [], [], [], -1
+        for s, size in ('tr', mat['BOF_tr_K'].shape[1]), ('te', mat['BOF_te_K'].shape[1]):
+            S.append(size)
+            for i in range(size):
+                X.append(np.hstack((mat['BOF_'+s+'_K'][0, i], mat['BOF_'+s+'_M'][0, i])))
+                Y.append(np.squeeze(mat['label_'+s][0, i]))
+                label = max(label, Y[-1].max())
+                V.append(mat['videoId_'+s][0, i][0])
+        yield X, Y, V, S, range(label+1)
 
 
 if __name__ == '__main__':
