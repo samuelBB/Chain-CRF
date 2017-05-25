@@ -3,6 +3,7 @@ from random import randint
 from itertools import izip
 from datetime import datetime
 
+import dill
 import numpy as np
 from sklearn import svm
 from scipy.optimize import minimize, check_grad as cg, approx_fprime
@@ -10,8 +11,6 @@ from scipy.optimize import minimize, check_grad as cg, approx_fprime
 from utils import timed, mkdir_p
 from evaluation import Evaluator
 
-# TODO pseudo-likelihood, scikit linear-kernel SVM
-# TODO if-time: cross-val/tune
 
 class Learner:
     def __init__(self, crf, gibbs=False, n_samples=1, burn=100, interval=1, MPM=False):
@@ -78,21 +77,24 @@ class Learner:
             if hasattr(self, s + '_loss'):
                 np.save(join(path, s + '_loss'), getattr(self, s + '_loss'))
 
-    def train(self, method='L-BFGS-B', disp=True, reg=0):
+    def train(self, method='L-BFGS-B', disp=True, reg=0, maxiter=400):
         """
         if implementing self.{obj(W),grad(W)} to be used with scipy optimization 
         """
         obj, grad = self.regularize(reg) if reg > 0 else (self.obj, self.grad)
         init = np.zeros(self.crf.n_W)
+        def log_W(W):
+            print 'curent W - obj: %s, norm: %s' % (obj(W), np.linalg.norm(W))
         with timed('Scipy Opt: %s' % method, self):
-            self.opt = minimize(obj, init, method=method, jac=grad, options={'disp': disp})
+            self.opt = minimize(obj, init, method=method, jac=grad, callback=log_W,
+                options={'maxiter': maxiter, 'disp': disp})
         self.W_opt = self.opt.x
         self.test_loss = self.test()
         return self.W_opt
 
     def test(self):
         losses, Ws_opt = [], self.crf.split_W(self.W_opt)
-        for pred, name in (self.crf.MAP, 'MAP'), (self.crf.MPM, 'MPM'):
+        for pred in self.crf.MPM, self.crf.MAP:
             with timed('Testing - Method: %s' % pred.__name__):
                 loss = self.ev(self.crf.Y_t, [pred(x, Ws_opt) for x in self.crf.X_t])
             print '\tTEST LOSS (%s): %s' % (pred.__name__, self.ev.get_names(loss))
@@ -178,10 +180,20 @@ class SML(Learner):
         return self.W_opt
 
 
-def baseline_SVC(crf, C=1., loss='squared_hinge', penalty='l2'):
+def train_svc(crf, C=1., loss='squared_hinge', penalty='l2'):
     X, Y = np.concatenate(crf.X), np.concatenate(crf.Y)
     dual = len(crf.N_tr) <= len(crf.n_feats)
     return svm.LinearSVC(penalty, loss, dual, C=C).fit(X, Y)
+
+
+def train_svc_multiple():
+    mkdir_p('SVC_results')
+    for c in .1, 1., 10., 100.:
+        for l in 'squared_hinge', 'hinge':
+            for p in 'l1', 'l2':
+                svc = train_svc(crf)
+                with open('SVC_results/ocr_svc_%s_%s_%s.p' % (c, l, p), 'wb') as f:
+                    dill.dump(svc, f)
 
 
 if __name__ == '__main__':
