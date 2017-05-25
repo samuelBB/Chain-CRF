@@ -24,7 +24,7 @@ def test_and_save(train):
 
 
 class Learner:
-    def __init__(self, crf, gibbs=False, cd=False, n_samps=5, burn=5, interval=5, MPM=False):
+    def __init__(self, crf, gibbs=False, cd=False, n_samps=5, burn=5, interval=5):
         self.crf = crf
         self.gibbs = gibbs
         self.cd = gibbs and cd
@@ -32,7 +32,6 @@ class Learner:
         self.n_samples = n_samps
         self.burn = burn
         self.interval = interval
-        self.pred = self.crf.MPM if MPM else self.crf.MAP
         self.ev = Evaluator()
 
     def feat(self, x, y):
@@ -179,7 +178,7 @@ class SML(Learner):
         return self.feat(x, y) - exp_f
 
     @test_and_save
-    def sgd(self, reg=1., lr_init=.1, step=1, n_iters=100000, val_interval=2500):
+    def sgd(self, reg=.9, lr_init=1., step=2, n_iters=300000, val_interval=5000):
         """
         when using Gibbs approximation and the current y is passed to the gradient function,
         this will perform CD-k (i.e., starting the gibbs sampler from the current y, and
@@ -200,7 +199,7 @@ class SML(Learner):
                     if i % val_interval == 0:
                         Ws = self.crf.split_W(self.W_opt)
                         with timed('Validation Iter'):
-                            loss = self.ev(self.crf.Y_v,[self.pred(x,Ws) for x in self.crf.X_v])
+                            loss = self.ev(self.crf.Y_v,[self.crf.MAP(x,Ws) for x in self.crf.X_v])
                         print '\tVAL LOSS: %s\n' % self.ev.get_names(loss)
                         self.val_loss.append(loss)
             except KeyboardInterrupt:
