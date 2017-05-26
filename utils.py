@@ -9,11 +9,11 @@ import numpy as np
 
 
 @contextmanager
-def timed(msg, obj=None):
+def timed(msg, obj=None, skip='\n'):
     start = time.time()
     yield
     total = time.time() - start
-    print '\n[DONE] {} - {:.4f} sec'.format(msg, total)
+    print skip + '[DONE] {} - {:.4f} sec'.format(msg, total)
     if obj:
         obj.train_time = total
 

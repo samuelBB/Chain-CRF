@@ -91,6 +91,9 @@ class Learner:
             if hasattr(self, s + '_loss'):
                 print '\t[INFO] Serializing %s_loss array' % s
                 np.save(join(path, s + '_loss'), getattr(self, s + '_loss'))
+        if hasattr(self, 'Ws_val'):
+            print '\t[INFO] Serializing Ws_val'
+            np.save(join(path, 'Ws_val'), self.Ws_val)
         return path
 
     def W_init(self, W=None, rand=False):
@@ -109,15 +112,25 @@ class Learner:
         """
         if implementing self.{obj(W),grad(W)} to be used with scipy optimization 
         """
+        print '[START] SML/SGD Training\n\nTR/VAL/TE SIZES: %s\n' % self.crf.Ns
         obj, grad = self.regularize(reg) if reg > 0 else (self.obj, self.grad)
-        def log_W(W):
-            # XXX validate here? would be after every iter
+        self.val_loss, self.Ws_val = [], []
+        def val(W):
             print 'current W - obj: %s, norm: %s' % (obj(W), np.linalg.norm(W))
+            Ws = self.crf.split_W(W)
+            with timed('Validation (MAP predict)', skip=''):
+                loss = self.ev(self.crf.Y_v, [self.crf.MAP(x, Ws) for x in self.crf.X_v])
+            print '\tVAL LOSS: %s\n' % self.ev.get_names(loss)
+            self.val_loss.append(loss)
+            self.Ws_val.append(np.array(W))
         with timed('Scipy Opt: %s' % method, self):
-            self.opt = minimize(obj, self.W_opt, method=method, jac=grad, callback=log_W,
-                options={'maxiter': maxiter, 'disp': disp})
-        self.W_opt = self.opt.x # XXX necess?
-        return self.W_opt
+            try:
+                self.opt = minimize(obj, self.W_opt, method=method, jac=grad, callback=val,
+                    options={'maxiter': maxiter, 'disp': disp})
+                self.W_opt = self.opt.x
+            except KeyboardInterrupt:
+                print '\nINFO - Manually exited Scipy training'
+        return self.W_opt, self.val_loss, self.Ws_val
 
 
 class ML(Learner):
@@ -185,7 +198,7 @@ class SML(Learner):
         """
         print '[START] SML/SGD Training\n\nTR/VAL/TE SIZES: %s\n' % self.crf.Ns
         grad = self.regularize(reg)[1] if reg > 0 else self.grad
-        self.val_loss, lr = [], lr_init
+        self.val_loss, self.Ws_val, lr = [], [], lr_init
         with timed('SML/SGD', self):
             try:
                 for i in xrange(1, n_iters+1):
@@ -196,15 +209,17 @@ class SML(Learner):
                     if step:
                         lr = lr_init * np.power(.1, np.floor(i * (step+1) / n_iters))
                     if i % val_interval == 0:
+                        print '\nCurrent norm: |W| = %s' % np.linalg.norm(self.W_opt)
                         Ws = self.crf.split_W(self.W_opt)
-                        with timed('Validation Iter'):
+                        with timed('Validation Iter (MAP predict)', skip=''):
                             loss = self.ev(self.crf.Y_v,
                                 [self.crf.MAP(x,Ws) for x in self.crf.X_v])
                         print '\tVAL LOSS: %s\n' % self.ev.get_names(loss)
                         self.val_loss.append(loss)
+                        self.Ws_val.append(np.array(self.W_opt))
             except KeyboardInterrupt:
                 print '\nINFO - Manually exited train loop at Iteration %s' % i
-        return self.W_opt, self.val_loss
+        return self.W_opt, self.val_loss, self.Ws_val
 
 
 # TODO FIXME log to file so stdout isn't crowded
