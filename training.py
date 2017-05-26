@@ -105,13 +105,13 @@ class Learner:
         return self.test_loss
 
     @test_and_save
-    def train(self, reg=1., method='L-BFGS-B', disp=True, maxiter=100):
+    def train(self, reg=.9, method='L-BFGS-B', disp=True, maxiter=100):
         """
         if implementing self.{obj(W),grad(W)} to be used with scipy optimization 
         """
         obj, grad = self.regularize(reg) if reg > 0 else (self.obj, self.grad)
         def log_W(W):
-            # XXX validate here? would be after every iter...fine?
+            # XXX validate here? would be after every iter
             print 'current W - obj: %s, norm: %s' % (obj(W), np.linalg.norm(W))
         with timed('Scipy Opt: %s' % method, self):
             self.opt = minimize(obj, self.W_opt, method=method, jac=grad, callback=log_W,
@@ -242,7 +242,7 @@ if __name__ == '__main__':
     from crf import ChainCRF
 
     nl = 5
-    data = synthetic(300, seq_len_range=(4, 8), n_feats=10, n_labels=nl)
+    data = synthetic(300, lims=(4, 8), n_feats=10, n_labels=nl)
     X, Y = zip(*data)
 
     # crf = ChainCRF(X, Y, range(nl))

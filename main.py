@@ -3,7 +3,7 @@ from itertools import izip
 import numpy as np
 
 from crf import ChainCRF
-from data import read_ocr, synthetic, potts, ocr_bigram_freqs
+from data import read_ocr, synthetic, potts, ocr_bigram_freqs, synthetic_gaussian
 from training import ML, SML, train_svc_multiple, train_gesture
 from utils import timed
 
@@ -121,19 +121,21 @@ def test_sample(crf, name='concat'):
 
 
 if __name__ == '__main__':
-    nl = 4
-    data = synthetic(100, seq_len_range=(4, 8), n_feats=8, n_labels=nl)
+    # nl = 4
+    # data = synthetic(100, lims=(4, 8), n_feats=8, n_labels=nl)
     # nl = 26
     # data = read_ocr()
-    X,Y = zip(*data)
+    # X,Y = zip(*data)
+
+    X, Y, nl = synthetic_gaussian()
 
     # crf = ChainCRF(X, Y, range(nl))
 
-    # crf = ChainCRF(X, Y, range(nl), potts(nl))
+    crf = ChainCRF(X, Y, range(nl), potts(nl))
     # crf = ChainCRF(X, Y, range(nl), ocr_bigram_freqs() * 100.)
 
-    # ml = ML(crf, gibbs=True, n_samps=10, burn=50, interval=10)
-    # ml.train(rand=True, path='OCR_ML_reg_1')
+    ml = ML(crf, gibbs=True, n_samps=5, burn=10, interval=5)
+    ml.train(rand=True, path='synth_gauss_reg1_lbfgs')
 
     # sml = SML(crf, gibbs=True, cd=True, n_samps=1, interval=1)
     # sml.sgd(n_iters=100,rand=True, path='OCR_SML_reg_1')
@@ -143,7 +145,7 @@ if __name__ == '__main__':
     # Ws = crf.split_W(np.random.rand(crf.n_W))
     # test_sample(crf)
 
-    train_gesture()
+    # train_gesture()
 
     # test_MAP(crf)
     # test_MPM(crf)
