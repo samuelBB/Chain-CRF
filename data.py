@@ -1,6 +1,7 @@
 import numpy as np
 from scandir import scandir
 from scipy.io import loadmat
+from scipy.ndimage import gaussian_filter
 
 
 def potts(n_labels, a=1., b=0.):
@@ -16,6 +17,21 @@ def synthetic(N=160, n_feats=1, seq_len_range=(100, 100), n_labels=8, normal=Fal
         seq_len = np.random.randint(l, h+1)
         yield np.array([np.array([rand() for _ in xrange(n_feats)]) for _ in xrange(seq_len)]),\
               np.array([np.random.randint(0, n_labels) for _ in xrange(seq_len)])
+
+
+def synthetic_gaussian(N=160, n_nodes=100, n_labels=8):
+    # XXX n_feats = n_labels?
+    shp = (n_nodes, n_labels)
+    X, Y = np.empty((N,) + shp), np.empty((N, n_nodes))
+    for i in xrange(N):
+        x, y = np.empty(shp), np.empty(shp)
+        for l in xrange(n_labels):
+            y[:, l] = gaussian_filter(np.random.rand(n_nodes), 7)
+        Y[i] = np.argmax(y, axis=-1)
+        for l in xrange(n_labels):
+            x[:, l] = Y[i] == l
+        X[i] = x + np.random.normal(0., .4, shp)
+    return X, Y
 
 
 def read_ocr(file='datasets/OCR/letter.data'):
