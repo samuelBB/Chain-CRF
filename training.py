@@ -10,8 +10,8 @@ from scipy.optimize import minimize, check_grad as cg, approx_fprime
 
 from crf import ChainCRF
 from data import read_gesture
-from utils import timed, mkdir_p
 from evaluation import Evaluator
+from utils import timed, mkdir_p, pmap
 
 
 def test_and_save(train):
@@ -207,22 +207,18 @@ class SML(Learner):
         return self.W_opt, self.val_loss
 
 
+# TODO FIXME log to file so stdout isn't crowded
 def train_gesture(cores=1, n_batches=20):
-    test_losses = []
     def train1((X, Y, V, labels)):
         crf = ChainCRF(X, Y, labels, V=V, test_pct=.365, val_pct=.295)
         sml = SML(crf, gibbs=True, cd=True, n_samps=1, burn=1, interval=1)
         sml.sgd(rand=True, path='Gesture_SML_reg_1')
-        test_losses.append(sml.test_loss)
-        del crf, sml # necess?
-    if cores > 1:
-        from pathos.multiprocessing import ProcessPool as PP
-        PP(ncpus=cores).map(train1, read_gesture(n_batches=n_batches))
-    else:
-        for attrs in read_gesture(n_batches=n_batches):
-            train1(attrs)
-    avg_loss = map(np.mean, map(np.array, zip(*test_losses)))
+        return sml.test_loss
+    test_loss = pmap(train1, read_gesture(n_batches=n_batches)) if cores > 1 else \
+        [train1(attrs) for attrs in read_gesture(n_batches=n_batches)]
+    avg_loss = map(np.mean, zip(*test_loss))
     print '\nAggregated Mean Test Loss: %s' % avg_loss
+    return avg_loss
 
 
 def train_svc(crf, C=1., loss='squared_hinge', penalty='l2'):

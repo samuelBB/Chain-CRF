@@ -2,6 +2,7 @@ import os
 import time
 import errno
 from os.path import isdir
+import multiprocessing as mp
 from contextlib import contextmanager
 
 import numpy as np
@@ -15,7 +16,6 @@ def timed(msg, obj=None):
     print '\n[DONE] {} - {:.4f} sec'.format(msg, total)
     if obj:
         obj.train_time = total
-
 
 
 def memoize(f):
@@ -42,6 +42,33 @@ def mkdir_p(path):
             pass
         else:
             raise
+
+
+def worker(f, Q, results, lock, setup):
+    setup()
+    while True:
+        try:
+            x = Q.get()
+            Q.task_done()
+            if not x:
+                return
+            y = f(x)
+            with lock:
+                results.append(y)
+        except Exception as e:
+            print(e)
+
+
+def pmap(f, tasks, n_jobs=mp.cpu_count(), setup=lambda: None):
+    Q       = mp.JoinableQueue()
+    results = mp.Manager().list()
+    lock    = mp.Lock()
+    procs   = [mp.Process(target=worker, args=(f, Q, results, lock, setup))
+               for _ in range(min(n_jobs, len(tasks)))]
+    map(mp.Process.start, procs)
+    map(Q.put, tasks + [None] * len(procs))
+    Q.join()
+    return results._getvalue()
 
 
 def softmax(x):
