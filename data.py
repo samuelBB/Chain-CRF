@@ -45,13 +45,15 @@ def ocr_bigram_freqs():
     return np.load('datasets/OCR/bigram_freqs.npy')[..., None] # XXX expand
 
 
-def read_gesture(path='datasets/BOFData'):
+def read_gesture(path='datasets/BOFData', n_batches=20):
     """ 
     NOTE for tr/te/v split = 30/12/5, use test_pct=.3617, val_pct=.2941
     NOTE one .mat file has 30/16 split (all others 30/17)
     NOTE label set = [0,1,...,x] where x in [8,9,10,11,12,13]
     """
-    for f in scandir(path):
+    for i, f in enumerate(scandir(path)):
+        if i >= n_batches:
+            return
         mat = loadmat(f.path)
         X, Y, V, label = [], [], [], -1
         for s, size in ('tr', mat['BOF_tr_K'].shape[1]), ('te', mat['BOF_te_K'].shape[1]):

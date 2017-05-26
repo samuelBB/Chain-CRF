@@ -207,16 +207,21 @@ class SML(Learner):
         return self.W_opt, self.val_loss
 
 
-def train_gesture():
+def train_gesture(cores=1, n_batches=20):
     test_losses = []
-    for X, Y, V, labels in read_gesture():
-        crf = ChainCRF(X,Y,labels, V=V, test_pct=.365, val_pct=.295) # XXX scalar model?
+    def train1((X, Y, V, labels)):
+        crf = ChainCRF(X, Y, labels, V=V, test_pct=.365, val_pct=.295)
         sml = SML(crf, gibbs=True, cd=True, n_samps=1, burn=1, interval=1)
         sml.sgd(rand=True, path='Gesture_SML_reg_1')
         test_losses.append(sml.test_loss)
-        del crf, sml
-    loss = map(np.array, zip(*test_losses))
-    avg_loss = map(np.mean, loss)
+        del crf, sml # necess?
+    if cores > 1:
+        from pathos.multiprocessing import ProcessPool as PP
+        PP(ncpus=cores).map(train1, read_gesture(n_batches=n_batches))
+    else:
+        for attrs in read_gesture(n_batches=n_batches):
+            train1(attrs)
+    avg_loss = map(np.mean, map(np.array, zip(*test_losses)))
     print '\nAggregated Mean Test Loss: %s' % avg_loss
 
 
