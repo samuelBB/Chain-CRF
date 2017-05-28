@@ -243,7 +243,8 @@ def train_svc(crf, C=1., loss='squared_hinge', penalty='l2'):
     return svm.LinearSVC(penalty, loss, dual, C=C).fit(X, Y)
 
 
-def train_svc_multiple(name=''):
+# TODO parallelize
+def train_svc_multiple(crf, name=''):
     mkdir_p('SVC_results_' % name)
     for c in .1, 1., 10., 100.:
         for l in 'squared_hinge', 'hinge':
