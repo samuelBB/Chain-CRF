@@ -245,12 +245,12 @@ def train_svc(crf, C=1., loss='squared_hinge', penalty='l2'):
 
 # TODO parallelize
 def train_svc_multiple(crf, name=''):
-    mkdir_p('SVC_results_' % name)
+    mkdir_p('SVC_results_%s' % name)
     for c in .1, 1., 10., 100.:
         for l in 'squared_hinge', 'hinge':
             for p in 'l1', 'l2':
                 svc = train_svc(crf)
-                with open('SVC_results/ocr_svc_%s_%s_%s.p' % (c, l, p), 'wb') as f:
+                with open('SVC_results_%s/svc_%s_%s_%s.p' % (name, c, l, p), 'wb') as f:
                     dill.dump(svc, f)
 
 

@@ -3,7 +3,7 @@ from itertools import izip
 import numpy as np
 
 from crf import ChainCRF
-from data import read_ocr, synthetic, potts, ocr_bigram_freqs, synthetic_gaussian
+from data import read_ocr, synthetic, potts, ocr_bigram_freqs, synthetic_gaussian, read_gesture
 from training import ML, SML, train_svc_multiple, train_gesture
 from utils import timed
 
@@ -127,20 +127,23 @@ if __name__ == '__main__':
     # data = read_ocr()
     # X,Y = zip(*data)
 
-    X, Y, nl = synthetic_gaussian()
+    # X, Y, nl = synthetic_gaussian()
 
     # crf = ChainCRF(X, Y, range(nl))
 
-    crf = ChainCRF(X, Y, range(nl), potts(nl, b=.1))
+    # crf = ChainCRF(X, Y, range(nl), potts(nl, b=.05))
     # crf = ChainCRF(X, Y, range(nl), ocr_bigram_freqs() * 100.)
 
-    ml = ML(crf, gibbs=True, n_samps=1, burn=0, interval=1)
-    ml.train(rand=True, path='synth_gauss_reg1_lbfgs')
+    # ml = ML(crf, gibbs=True, n_samps=5, burn=1, interval=5)
+    # ml.train(rand=True, path='synth_gauss_potts_reg9_lbfgs_cd1-5samps')
 
-    sml = SML(crf, gibbs=True, cd=True, n_samps=1, interval=1)
-    sml.sgd(n_iters=100,rand=True, path='synth_gauss_reg9')
+    # sml = SML(crf, gibbs=True, cd=True, n_samps=1, burn=0, interval=1)
+    # sml.sgd(reg=.8, rand=True, path='synth_gauss_concat_reg9_sml_cd1-1samps')
 
-    # train_svc_multiple()
+
+    for X,Y,V,l,name in read_gesture():
+        crf = ChainCRF(X,Y,l,V=V)
+        train_svc_multiple(crf, name='SG_gesture_%s' % name)
 
     # Ws = crf.split_W(np.random.rand(crf.n_W))
     # test_sample(crf)
