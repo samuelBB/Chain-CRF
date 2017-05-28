@@ -7,5 +7,9 @@ build
 # pycharm
 .idea
 
+# vim
+*.swp
+
 # local project files
 results
+SVC_*

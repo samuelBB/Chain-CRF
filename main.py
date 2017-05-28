@@ -127,9 +127,10 @@ if __name__ == '__main__':
     # data = read_ocr()
     # X,Y = zip(*data)
 
-    # X, Y, nl = synthetic_gaussian()
+    X, Y, nl = synthetic_gaussian()
 
-    # crf = ChainCRF(X, Y, range(nl))
+    crf = ChainCRF(X, Y, range(nl))
+    train_svc_multiple(crf, name='SynthGauss')
 
     # crf = ChainCRF(X, Y, range(nl), potts(nl, b=.05))
     # crf = ChainCRF(X, Y, range(nl), ocr_bigram_freqs() * 100.)
@@ -141,9 +142,9 @@ if __name__ == '__main__':
     # sml.sgd(reg=.8, rand=True, path='synth_gauss_concat_reg9_sml_cd1-1samps')
 
 
-    for X,Y,V,l,name in read_gesture():
-        crf = ChainCRF(X,Y,l,V=V)
-        train_svc_multiple(crf, name='SG_gesture_%s' % name)
+    # for X,Y,V,l,name in read_gesture():
+    #     crf = ChainCRF(X,Y,l,V=V)
+    #     train_svc_multiple(crf, name='Gesture_%s' % name[:-4])
 
     # Ws = crf.split_W(np.random.rand(crf.n_W))
     # test_sample(crf)

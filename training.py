@@ -249,9 +249,12 @@ def train_svc_multiple(crf, name=''):
     for c in .1, 1., 10., 100.:
         for l in 'squared_hinge', 'hinge':
             for p in 'l1', 'l2':
-                svc = train_svc(crf, C=c, loss=l, penalty=p)
-                with open('SVC_results_%s/svc_%s_%s_%s.p' % (name, c, l, p), 'wb') as f:
-                    dill.dump(svc, f)
+                try:
+                    svc = train_svc(crf, C=c, loss=l, penalty=p)
+                    with open('SVC_results_%s/svc_%s_%s_%s.p' % (name, c, l, p), 'wb') as f:
+                        dill.dump(svc, f)
+                except:
+                    print '\n[WARNING] unsupported set of SVC args\n'
 
 
 if __name__ == '__main__':
