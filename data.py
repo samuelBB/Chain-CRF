@@ -77,4 +77,4 @@ def read_gesture(path='datasets/BOFData', n_batches=20):
                 Y.append(np.squeeze(mat['label_'+s][0, i]))
                 label = max(label, Y[-1].max())
                 V.append(mat['videoId_'+s][0, i][0])
-        yield X, Y, V, range(label+1)
+        yield X, Y, V, range(label+1), f.name

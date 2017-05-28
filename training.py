@@ -16,10 +16,10 @@ from utils import timed, mkdir_p, pmap
 
 def test_and_save(train):
     """ sweet deco which adds auto testing+saving """
-    def _train_test_save(self, W=None, rand=False, path='', *a, **k):
+    def _train_test_save(self, W=None, rand=False, path='', name='', *a, **k):
         if not hasattr(self, 'W_opt'):
             self.W_init(W, rand)
-        outs = train(self, *a, **k), self.test(), self.save_solution(path)
+        outs = train(self, *a, **k), self.test(), self.save_solution(path, name)
         return zip(('tr', 'te', 'sav'), outs)
     return _train_test_save
 
@@ -79,9 +79,9 @@ class Learner:
     def grad_apx(self, W):
         return approx_fprime(W, self.obj, np.sqrt(np.finfo(float).eps))
 
-    def save_solution(self, path=''):
+    def save_solution(self, path='', name=''):
         """ NOTE must have trained already """
-        path = join('results', path, datetime.now().strftime('%Y-%-m-%-d_%-H-%-M-%-S'))
+        path = join('results', path, name + datetime.now().strftime('%Y-%-m-%-d_%-H-%-M-%-S'))
         mkdir_p(path)
         print '\n[DONE] Made results folder: %s' % path
         if hasattr(self, 'W_opt') and hasattr(self, 'train_time'):
@@ -223,14 +223,15 @@ class SML(Learner):
 
 
 # TODO FIXME log to file so stdout isn't crowded
-def train_gesture(cores=1, n_batches=20):
-    def train1((X, Y, V, labels)):
-        crf = ChainCRF(X, Y, labels, V=V, test_pct=.365, val_pct=.295)
-        sml = SML(crf, gibbs=True, cd=True, n_samps=1, burn=1, interval=1)
-        sml.sgd(rand=True, path='Gesture_SML_reg_1')
+def train_gesture(cores=20, n_batches=20):
+    def train1((X, Y, V, labels, name)):
+        crf = ChainCRF(X, Y, labels, V=V, test_pct=.365, val_pct=.4)
+        sml = SML(crf, gibbs=True, cd=True, n_samps=5, burn=5, interval=5)
+        sml.sgd(n_iters=500000, val_interval=10000, rand=True, 
+                path='Gesture_SML_reg9_cd555_iter500k', name=name[:-4])
         return sml.test_loss
-    test_loss = pmap(train1, read_gesture(n_batches=n_batches)) if cores > 1 else \
-        [train1(attrs) for attrs in read_gesture(n_batches=n_batches)]
+    test_loss = pmap(train1, list(read_gesture(n_batches=n_batches)), n_jobs=cores) \
+        if cores > 1 else [train1(attrs) for attrs in read_gesture(n_batches=n_batches)]
     avg_loss = map(np.mean, zip(*test_loss))
     print '\nAggregated Mean Test Loss: %s' % avg_loss
     return avg_loss
@@ -242,8 +243,8 @@ def train_svc(crf, C=1., loss='squared_hinge', penalty='l2'):
     return svm.LinearSVC(penalty, loss, dual, C=C).fit(X, Y)
 
 
-def train_svc_multiple():
-    mkdir_p('SVC_results')
+def train_svc_multiple(name=''):
+    mkdir_p('SVC_results_' % name)
     for c in .1, 1., 10., 100.:
         for l in 'squared_hinge', 'hinge':
             for p in 'l1', 'l2':
