@@ -258,28 +258,32 @@ def train_svc_multiple(crf, name=''):
 
 
 if __name__ == '__main__':
+    ## import data, CRF model
     from data import potts, synthetic
-    from crf import ChainCRF
 
+    ## make data
     nl = 5
     data = synthetic(300, lims=(4, 8), n_feats=10, n_labels=nl)
     X, Y = zip(*data)
 
+    ## construct CRF on data
     # crf = ChainCRF(X, Y, range(nl))
     crf = ChainCRF(X, Y, range(nl), potts(nl))
 
-    learner = PL(crf)
+    ## construct learner on crf/data and train using RMCL/LBFGS
+    learner = ML(crf)
+    ml = ML(crf, gibbs=True, n_samps=10, burn=100, interval=10)
+    ml.train(rand=True, path='save_path')
 
-    # W = np.random.rand(crf.n_W)
-    # Ws = crf.split_W(W)
+    ## construct random parameter vector and compute objective/gradient/finite-diff
+    ## then check gradient against finite-diff
+    W = np.random.rand(crf.n_W)
+    Ws = crf.split_W(W)
+    print learner.obj(W)
+    print learner.grad(W)
+    print learner.grad_apx(W)
+    print learner.check_grad()
 
-    # print learner.obj(W)
-    # print learner.grad(W)
-    # print learner.grad_apx(W)
-    # print learner.check_grad()
-
-    # with timed('exp_feat'):
-    #     learner.exp_feat(crf.X[0], W)
-    # learner.burn = 100
-    # with timed('exp_gibbs'):
-    #     learner.exp_feat_gibbs(crf.X[0], W)
+    ## construct learner on crf/data and train using SML (SGD+Gibbs sampling)
+    learner = SML(crf, gibbs=True, cd=True, n_samps=1, burn=0, interval=1)
+    learner.sgd(reg=.8, rand=True, path='save_path2')
